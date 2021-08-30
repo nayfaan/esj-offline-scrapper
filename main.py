@@ -1,71 +1,52 @@
+# -*- coding: utf-8 -*-
+
 import services.startDriver
 from services.startDriver import *
-import csv
-import time
+import time, sys, os
+from pathlib import Path
 
-def initiate_driver(driver, url):
-    driver.get(url)
-    
-def login(driver,username,password):
-    WebDriverWait(driver, timeout=10).until(ec.visibility_of_element_located((By.CSS_SELECTOR, "#user_login")))
-    
-    username_field = driver.find_element_by_css_selector("#user_login")
-    username_field.clear()
-    username_field.send_keys(username)
-    
-    WebDriverWait(driver, timeout=10).until(ec.visibility_of_element_located((By.CSS_SELECTOR, "#user_pass")))
-    
-    password_field = driver.find_element_by_css_selector("#user_pass")
-    password_field.clear()
-    password_field.send_keys(password)
-    time.sleep(0.3)
-    password_field.send_keys(Keys.RETURN)
-    
-    WebDriverWait(driver, timeout=60).until(ec.visibility_of_element_located((By.CSS_SELECTOR, "#wpcontent")))
-    
-def output_csv(ids):
-    with open('output/output_url.csv', 'w', newline='') as csvfile:
-        output = csv.writer(csvfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        for row in ids:
-            output.writerow(row)
-            print(row)
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def scrap(driver,ids):
+def find_categories(driver):
+    table = driver.find_elements_by_css_selector("#forum-body td a")
+    categories_list = {}
     
-    ids_temp = ids
+    for i in range(len(table)):
+        categories_list.update({table[i].get_attribute('innerHTML'): table[i].get_attribute('href')})
+    return categories_list
+
+def scrap(driver):
+    books = find_categories(driver)
     
-    try:
-        for row in ids_temp:
-            driver.get(row[0])
-            WebDriverWait(driver, timeout=120).until(ec.visibility_of_element_located((By.CSS_SELECTOR, "#sample-permalink > a")))
-            url_prod = driver.find_element_by_css_selector("#sample-permalink > a").get_attribute("href")
-            row.append(url_prod)
-    except:
-        print("Timeout Error")
-    finally:
-        output_csv(ids_temp)
+    for category in books:
+        Path(os.path.join(os.path.sep, ROOT_DIR,'output', category)).mkdir(parents=True, exist_ok=True)
+        driver.get(books[category])
+        books.update({category: find_categories(driver)})
+        
+        for book in books[category]:
+            book_path = os.path.join(os.path.sep, ROOT_DIR,'output', category,book)
+            Path(book_path).mkdir(parents=True, exist_ok=True)
+            
+            driver.get(books[category][book])
+            
+            image_tab = driver.find_element_by_css_selector('#illustration')
+            image_tab_content = '<meta charset="UTF-8">\n' + image_tab.get_attribute('innerHTML')
+            
+            book_write = open(os.path.join(book_path, str(book) + ".html"), "w")
+            book_write.write(image_tab_content)
+            book_write.close()
     
 def run():
-    ids=[]
-    
-    with open('./input/ids.csv', newline='') as csvfile:
-        ids_csv = csv.reader(csvfile, delimiter=',', quotechar='"')
-        
-        for row in ids_csv:
-            url_edit = "https://facedrivesupply.com/wp-admin/post.php?post=" + row[0] + "&action=edit"
-            ids.append(url_edit.split())
-    
     driver = services.startDriver.start()
-    initiate_driver(driver, "https://facedrivesupply.com/wp-admin/edit.php?post_type=product")
-    
-    with open('./input/credentials.txt','r') as f:
-        credentials = f.read().splitlines()
     
     
-    login(driver,credentials[0],credentials[1])
+    esj_home = 'file://' + os.path.join(os.path.sep, ROOT_DIR,'esj/bbs.html')
+    
+    driver.get(esj_home)
     
     try:
-        scrap(driver,ids)
+        scrap(driver)
+        
     except:
         pass
     finally:

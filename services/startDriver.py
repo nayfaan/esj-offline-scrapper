@@ -8,7 +8,7 @@ from selenium.webdriver.support import expected_conditions as ec
 
 def start():
     caps = DesiredCapabilities().CHROME
-    caps["pageLoadStrategy"] = "none"
+    caps["pageLoadStrategy"] = "normal"
     return webdriver.Chrome(desired_capabilities=caps, executable_path='./services/chromedriver')
 
 if __name__ == "__main__":
